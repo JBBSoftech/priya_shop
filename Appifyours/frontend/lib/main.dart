@@ -509,24 +509,42 @@ class AdminManager {
   
   static Future<String> getCurrentAdminId() async {
     if (_currentAdminId != null) return _currentAdminId!;
-
-    // Immutable single source of truth: embedded at publish time
-    final adminId = ApiConfig.adminObjectId;
-    assert(
-      adminId == ApiConfig.adminObjectId,
-      '❌ CRITICAL: Admin ID override detected',
-    );
-
-    _currentAdminId = adminId;
-    print('✅ Admin ID locked: $adminId');
-    return adminId;
+    
+    try {
+      // Try to get from SharedPreferences first (like working preview)
+      final prefs = await SharedPreferences.getInstance();
+      final storedAdminId = prefs.getString('admin_id');
+      if (storedAdminId != null && storedAdminId.isNotEmpty) {
+        _currentAdminId = storedAdminId;
+        return storedAdminId;
+      }
+      
+      // Fallback to hardcoded admin ID if available
+      final adminId = ApiConfig.adminObjectId;
+      if (adminId != '694b7ed927bc8d04436e1200' && adminId.isNotEmpty) {
+        _currentAdminId = adminId;
+        print('✅ Admin ID locked: $adminId');
+        return adminId;
+      }
+      
+      throw Exception('No admin ID available');
+    } catch (e) {
+      print('❌ Error getting admin ID: $e');
+      // Fallback to hardcoded admin ID
+      final adminId = ApiConfig.adminObjectId;
+      if (adminId != '694b7ed927bc8d04436e1200') {
+        _currentAdminId = adminId;
+        return adminId;
+      }
+      throw Exception('No admin ID configured');
+    }
   }
   
   // Auto-detect admin ID from backend
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.49.51.184:5000/api/admin/app-info'),
+        Uri.parse('http://10.159.57.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -701,7 +719,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.49.51.184:5000/api/login'),
+        Uri.parse('http://10.159.57.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -1140,14 +1158,15 @@ class _HomePageState extends State<HomePage> {
       print('🔍 Home page using admin ID: ${adminId}');
       
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/app/dynamic/${adminId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
-          final pages = (data['pages'] is List) ? List.from(data['pages']) : <dynamic>[];
+          final config = data['config'] ?? {};
+          final pages = (config['pages'] is List) ? List.from(config['pages']) : <dynamic>[];
 
           // Extract widgets from first page (Home)
           List<Map<String, dynamic>> extractedWidgets = [];
@@ -1176,9 +1195,9 @@ class _HomePageState extends State<HomePage> {
             return 0;
           });
 
-          final storeInfo = (data['storeInfo'] is Map) ? Map<String, dynamic>.from(data['storeInfo']) : <String, dynamic>{};
-          final designSettings = (data['designSettings'] is Map)
-              ? Map<String, dynamic>.from(data['designSettings'])
+          final storeInfo = (config['storeInfo'] is Map) ? Map<String, dynamic>.from(config['storeInfo']) : <String, dynamic>{};
+          final designSettings = (config['designSettings'] is Map)
+              ? Map<String, dynamic>.from(config['designSettings'])
               : <String, dynamic>{};
 
           setState(() {
@@ -1312,10 +1331,11 @@ class _HomePageState extends State<HomePage> {
 
     switch (name) {
       case 'HeaderWidget':
-        // Static Header Widget - uses API data, matches preview alignment
+        // Dynamic Header Widget - uses API data with image support
         final appName = (_dynamicStoreInfo['storeName'] ?? 'My Store').toString();
         final bg = (_dynamicDesignSettings['headerColor'] ?? '#4fb322').toString();
         final backgroundColor = _colorFromHex(bg);
+        final headerImage = (_dynamicDesignSettings['headerImage'] ?? '').toString();
         final height = 60.0;
         final textColor = Colors.white;
         final fontSize = 16.0;
@@ -1326,35 +1346,69 @@ class _HomePageState extends State<HomePage> {
           width: double.infinity,
           height: height,
           color: backgroundColor,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center : 
-                           textAlign == 'right' ? MainAxisAlignment.end : MainAxisAlignment.start,
-              children: [
-                if (textAlign != 'right')
-                  const Icon(Icons.store, size: 24, color: Colors.white),
-                if (textAlign != 'right') const SizedBox(width: 6),
-                Text(
-                  appName,
-                  textAlign: textAlign == 'center' ? TextAlign.center : 
-                           textAlign == 'right' ? TextAlign.right : TextAlign.left,
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: fontWeight,
-                    fontSize: fontSize,
-                  ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Logo/App Name
+              Expanded(
+                child: Row(
+                  children: [
+                    if (headerImage.isNotEmpty)
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            headerImage,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(Icons.store, color: Colors.white, size: 24);
+                            },
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                        child: Icon(Icons.store, color: Colors.white, size: 24),
+                      ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        appName,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-                if (textAlign == 'right') const SizedBox(width: 6),
-                if (textAlign == 'right')
-                  const Icon(Icons.store, size: 24, color: Colors.white),
-              ],
-            ),
+              ),
+              // Cart icon
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white.withOpacity(0.2),
+                ),
+                child: Icon(Icons.shopping_cart, color: Colors.white, size: 20),
+              ),
+            ],
+          ),
           ),
         );
 
