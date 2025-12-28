@@ -526,7 +526,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://172.30.114.184:5000/api/admin/app-info'),
+        Uri.parse('http://3.7.15.17/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -701,7 +701,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://172.30.114.184:5000/api/login'),
+        Uri.parse('http://3.7.15.17/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -1886,6 +1886,171 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+          ),
+        );
+
+      case 'SocialShareWidget':
+        // Dynamic SocialShare Widget - matches preview exactly
+        final title = props['title'] ?? 'Share this product';
+        final shareText = props['shareText'] ?? 'Share this product';
+        final shareLink = props['shareLink'] ?? 'https://example.com/product';
+        final facebookText = props['facebookText'] ?? 'Check out this amazing product!';
+        final twitterText = props['twitterText'] ?? 'Just found this great product! #shopping';
+        final iconSize = double.tryParse(props['iconSize']?.toString() ?? '32') ?? 32.0;
+        final facebookColor = props['facebookColor'] != null
+            ? _colorFromHex(props['facebookColor'])
+            : const Color(0xFF1877F2);
+        final twitterColor = props['twitterColor'] != null
+            ? _colorFromHex(props['twitterColor'])
+            : const Color(0xFF1DA1F2);
+        final whatsappColor = props['whatsappColor'] != null
+            ? _colorFromHex(props['whatsappColor'])
+            : const Color(0xFF25D366);
+        final copyLinkColor = props['copyLinkColor'] != null
+            ? _colorFromHex(props['copyLinkColor'])
+            : const Color(0xFF6C757D);
+        final instagramColor = props['instagramColor'] != null
+            ? _colorFromHex(props['instagramColor'])
+            : const Color(0xFFE4405F);
+        final showFacebook = props['showFacebook'] ?? true;
+        final showTwitter = props['showTwitter'] ?? true;
+        final showWhatsApp = props['showWhatsApp'] ?? true;
+        final showCopyLink = props['showCopyLink'] ?? true;
+        final showInstagram = props['showInstagram'] ?? true;
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  if (showFacebook)
+                    Column(
+                      children: [
+                        Container(
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            color: facebookColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.facebook, color: Colors.white, size: 18),
+                            onPressed: () {
+                              _shareToPlatform('facebook', shareLink, facebookText);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('Facebook', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                  if (showTwitter)
+                    Column(
+                      children: [
+                        Container(
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            color: twitterColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.alternate_email, color: Colors.white, size: 18),
+                            onPressed: () {
+                              _shareToPlatform('twitter', shareLink, twitterText);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('Twitter', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                  if (showInstagram)
+                    Column(
+                      children: [
+                        Container(
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [instagramColor, instagramColor.withOpacity(0.7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                            onPressed: () {
+                              _shareToPlatform('instagram', shareLink, shareText);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('Instagram', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                  if (showWhatsApp)
+                    Column(
+                      children: [
+                        Container(
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            color: whatsappColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.message, color: Colors.white, size: 18),
+                            onPressed: () {
+                              _shareToPlatform('whatsapp', shareLink, shareText);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('WhatsApp', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                  if (showCopyLink)
+                    Column(
+                      children: [
+                        Container(
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            color: copyLinkColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.link, color: Colors.white, size: 18),
+                            onPressed: () {
+                              _copyShareLink(shareLink);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('Copy Link', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                shareLink,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
           ),
         );
 
