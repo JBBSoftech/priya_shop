@@ -321,6 +321,19 @@ class DynamicAppSync {
   }
 }
 
+class LowerCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final lower = newValue.text.toLowerCase();
+    if (lower == newValue.text) return newValue;
+    return TextEditingValue(
+      text: lower,
+      selection: newValue.selection,
+      composing: TextRange.empty,
+    );
+  }
+}
+
 // Function to load dynamic product data from backend
 Future<void> loadDynamicProductData() async {
   try {
@@ -467,7 +480,7 @@ class MyApp extends StatelessWidget {
 // API Configuration - Auto-updated with your server details
 class ApiConfig {
   static String get baseUrl => Environment.apiBase;
-  static const String adminObjectId = '694b7ed927bc8d04436e1200'; // Will be replaced during publish
+  static const String adminObjectId = 'ADMIN_OBJECT_ID_HERE'; // Will be replaced during publish
   static const String appId = 'APP_ID_HERE'; // Will be replaced during publish
 }
 
@@ -704,7 +717,7 @@ class _SignInPageState extends State<SignInPage> {
         Uri.parse('http://10.147.118.184:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'email': _emailController.text.trim(),
+          'email': _emailController.text.trim().toLowerCase(),
           'password': _passwordController.text,
           'adminId': adminId,
           'appId': ApiConfig.appId,
@@ -752,6 +765,7 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -785,9 +799,22 @@ class _SignInPageState extends State<SignInPage> {
               const SizedBox(height: 48),
               TextField(
                 controller: _emailController,
+                inputFormatters: [LowerCaseTextFormatter()],
+                onChanged: (value) {
+                  final lower = value.toLowerCase();
+                  if (lower != value) {
+                    _emailController.value = _emailController.value.copyWith(
+                      text: lower,
+                      selection: TextSelection.collapsed(offset: lower.length),
+                      composing: TextRange.empty,
+                    );
+                  }
+                },
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.email),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
@@ -797,6 +824,8 @@ class _SignInPageState extends State<SignInPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock),
+                  filled: true,
+                  fillColor: Colors.white,
                   suffixIcon: IconButton(
                     icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -859,6 +888,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  Country? _selectedPhoneCountry;
 
   @override
   void dispose() {
@@ -875,7 +905,12 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validatePhone(String phone) {
-    return RegExp(r'^[0-9]{10}$').hasMatch(phone);
+    final digitsOnly = phone.replaceAll(RegExp(r'D'), '');
+    final maxLen = _selectedPhoneCountry?.maxLength;
+    if (maxLen != null) {
+      return digitsOnly.length == maxLen;
+    }
+    return RegExp(r'^[0-9]{10}$').hasMatch(digitsOnly);
   }
 
   bool _validatePassword(String password) {
@@ -885,7 +920,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   Future<void> _createAccount() async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text;
 
@@ -921,6 +956,9 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
     try {
       final adminId = await AdminManager.getCurrentAdminId();
+      final dialCode = _selectedPhoneCountry?.dialCode ?? '';
+      final phoneDigits = phone.replaceAll(RegExp(r'D'), '');
+      final fullPhone = '$dialCode$phoneDigits';
       final response = await http.post(
         Uri.parse('${Environment.apiBase}/api/signup'),
         headers: {'Content-Type': 'application/json'},
@@ -929,7 +967,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           'lastName': lastName,
           'email': email,
           'password': password,
-          'phone': phone,
+          'phone': fullPhone,
           'adminId': adminId,
           'shopName': SessionManager.appName,
         }),
@@ -981,9 +1019,13 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Create Account'),
         automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -1013,6 +1055,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 decoration: const InputDecoration(
                   labelText: 'First Name',
                   prefixIcon: Icon(Icons.person),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
@@ -1022,26 +1066,40 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 decoration: const InputDecoration(
                   labelText: 'Last Name',
                   prefixIcon: Icon(Icons.person_outline),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 16),
-              TextField(
+              CustomPhoneInput(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone),
-                  hintText: '10 digit number',
-                ),
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
+                hintText: 'Enter phone number',
+                onCountryChanged: (country) {
+                  setState(() {
+                    _selectedPhoneCountry = country;
+                  });
+                },
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _emailController,
+                inputFormatters: [LowerCaseTextFormatter()],
+                onChanged: (value) {
+                  final lower = value.toLowerCase();
+                  if (lower != value) {
+                    _emailController.value = _emailController.value.copyWith(
+                      text: lower,
+                      selection: TextSelection.collapsed(offset: lower.length),
+                      composing: TextRange.empty,
+                    );
+                  }
+                },
                 decoration: const InputDecoration(
                   labelText: 'Email ID',
                   prefixIcon: Icon(Icons.email),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
@@ -1051,6 +1109,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock),
+                  filled: true,
+                  fillColor: Colors.white,
                   suffixIcon: IconButton(
                     icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -1312,15 +1372,18 @@ class _HomePageState extends State<HomePage> {
 
     switch (name) {
       case 'HeaderWidget':
-        // Static Header Widget - uses API data, matches preview alignment
-        final appName = (_dynamicStoreInfo['storeName'] ?? 'My Store').toString();
-        final bg = (_dynamicDesignSettings['headerColor'] ?? '#4fb322').toString();
+        // Dynamic Header Widget - prefers widget properties, falls back to API data
+        final appName = (props['appName'] ?? _dynamicStoreInfo['storeName'] ?? 'My Store').toString();
+        final logoAsset = (props['logoAsset'] ?? '').toString();
+        final bg = (props['backgroundColor'] ?? _dynamicDesignSettings['headerColor'] ?? '#4fb322').toString();
         final backgroundColor = _colorFromHex(bg);
-        final height = 60.0;
-        final textColor = Colors.white;
-        final fontSize = 16.0;
+        final height = double.tryParse(props['height']?.toString() ?? '') ?? 60.0;
+        final textColor = props['textColor'] != null ? _colorFromHex(props['textColor']) : Colors.white;
+        final fontSize = double.tryParse(props['fontSize']?.toString() ?? '') ?? 16.0;
         final fontWeight = FontWeight.bold;
-        final textAlign = 'left';
+        final textAlign = (props['alignment'] ?? props['textAlign'] ?? 'left').toString();
+        final logoHeight = double.tryParse(props['logoHeight']?.toString() ?? '') ?? 24.0;
+        final logoWidth = double.tryParse(props['logoWidth']?.toString() ?? '') ?? 24.0;
 
         return Container(
           width: double.infinity,
@@ -1338,7 +1401,21 @@ class _HomePageState extends State<HomePage> {
                            textAlign == 'right' ? MainAxisAlignment.end : MainAxisAlignment.start,
               children: [
                 if (textAlign != 'right')
-                  const Icon(Icons.store, size: 24, color: Colors.white),
+                  (logoAsset.isNotEmpty
+                      ? (logoAsset.startsWith('data:image/')
+                          ? Image.memory(
+                              base64Decode(logoAsset.split(',')[1]),
+                              width: logoWidth,
+                              height: logoHeight,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.network(
+                              logoAsset,
+                              width: logoWidth,
+                              height: logoHeight,
+                              fit: BoxFit.cover,
+                            ))
+                      : const Icon(Icons.store, size: 24, color: Colors.white)),
                 if (textAlign != 'right') const SizedBox(width: 6),
                 Text(
                   appName,
@@ -1352,7 +1429,21 @@ class _HomePageState extends State<HomePage> {
                 ),
                 if (textAlign == 'right') const SizedBox(width: 6),
                 if (textAlign == 'right')
-                  const Icon(Icons.store, size: 24, color: Colors.white),
+                  (logoAsset.isNotEmpty
+                      ? (logoAsset.startsWith('data:image/')
+                          ? Image.memory(
+                              base64Decode(logoAsset.split(',')[1]),
+                              width: logoWidth,
+                              height: logoHeight,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.network(
+                              logoAsset,
+                              width: logoWidth,
+                              height: logoHeight,
+                              fit: BoxFit.cover,
+                            ))
+                      : const Icon(Icons.store, size: 24, color: Colors.white)),
               ],
             ),
           ),
@@ -1555,29 +1646,31 @@ class _HomePageState extends State<HomePage> {
         return _buildDynamicProductGrid();
 
       case 'StoreInfoWidget':
-        // Static StoreInfo Widget - uses API data, matches preview exactly
-        final storeName = (_dynamicStoreInfo['storeName']?.toString().trim() ?? '');
-        final address = (_dynamicStoreInfo['address']?.toString().trim() ?? '');
-        final email = (_dynamicStoreInfo['email']?.toString().trim() ?? '');
-        final phone = (_dynamicStoreInfo['phone']?.toString().trim() ?? '');
-        final website = (_dynamicStoreInfo['website']?.toString().trim() ?? '');
-        final footerText = (_dynamicStoreInfo['footerText']?.toString().trim() ?? '');
-        final storeLogo = _dynamicStoreInfo['storeLogo'];
+        // Dynamic StoreInfo Widget - prefers widget properties, falls back to API data
+        final storeName = ((props['storeName'] ?? _dynamicStoreInfo['storeName'])?.toString().trim() ?? '');
+        final address = ((props['address'] ?? _dynamicStoreInfo['address'])?.toString().trim() ?? '');
+        final email = ((props['email'] ?? _dynamicStoreInfo['email'])?.toString().trim() ?? '');
+        final phone = ((props['phone'] ?? _dynamicStoreInfo['phone'])?.toString().trim() ?? '');
+        final website = ((props['website'] ?? _dynamicStoreInfo['website'])?.toString().trim() ?? '');
+        final footerText = ((props['footerText'] ?? _dynamicStoreInfo['footerText'])?.toString().trim() ?? '');
+        final storeLogo = (props['storeLogo'] ?? _dynamicStoreInfo['storeLogo']);
 
-        final textColor = Colors.black;
-        final iconColor = Colors.blue;
-        final backgroundColor = const Color(0xFFE3F2FD);
-        final borderRadius = 8.0;
+        final textColor = props['textColor'] != null ? _colorFromHex(props['textColor']) : Colors.black;
+        final iconColor = props['iconColor'] != null ? _colorFromHex(props['iconColor']) : Colors.blue;
+        final backgroundColor = props['backgroundColor'] != null ? _colorFromHex(props['backgroundColor']) : const Color(0xFFE3F2FD);
+        final borderRadius = double.tryParse(props['borderRadius']?.toString() ?? '') ?? 8.0;
+        final marginV = double.tryParse(props['margin']?.toString() ?? '') ?? 4.0;
+        final paddingV = double.tryParse(props['padding']?.toString() ?? '') ?? 16.0;
 
         return Container(
           width: double.infinity,
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          margin: EdgeInsets.symmetric(horizontal: 8, vertical: marginV),
           child: Card(
             elevation: 2,
             color: backgroundColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(borderRadius)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(paddingV),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1886,171 +1979,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-          ),
-        );
-
-      case 'SocialShareWidget':
-        // Dynamic SocialShare Widget - matches preview exactly
-        final title = props['title'] ?? 'Share this product';
-        final shareText = props['shareText'] ?? 'Share this product';
-        final shareLink = props['shareLink'] ?? 'https://example.com/product';
-        final facebookText = props['facebookText'] ?? 'Check out this amazing product!';
-        final twitterText = props['twitterText'] ?? 'Just found this great product! #shopping';
-        final iconSize = double.tryParse(props['iconSize']?.toString() ?? '32') ?? 32.0;
-        final facebookColor = props['facebookColor'] != null
-            ? _colorFromHex(props['facebookColor'])
-            : const Color(0xFF1877F2);
-        final twitterColor = props['twitterColor'] != null
-            ? _colorFromHex(props['twitterColor'])
-            : const Color(0xFF1DA1F2);
-        final whatsappColor = props['whatsappColor'] != null
-            ? _colorFromHex(props['whatsappColor'])
-            : const Color(0xFF25D366);
-        final copyLinkColor = props['copyLinkColor'] != null
-            ? _colorFromHex(props['copyLinkColor'])
-            : const Color(0xFF6C757D);
-        final instagramColor = props['instagramColor'] != null
-            ? _colorFromHex(props['instagramColor'])
-            : const Color(0xFFE4405F);
-        final showFacebook = props['showFacebook'] ?? true;
-        final showTwitter = props['showTwitter'] ?? true;
-        final showWhatsApp = props['showWhatsApp'] ?? true;
-        final showCopyLink = props['showCopyLink'] ?? true;
-        final showInstagram = props['showInstagram'] ?? true;
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  if (showFacebook)
-                    Column(
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            color: facebookColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.facebook, color: Colors.white, size: 18),
-                            onPressed: () {
-                              _shareToPlatform('facebook', shareLink, facebookText);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Facebook', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  if (showTwitter)
-                    Column(
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            color: twitterColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.alternate_email, color: Colors.white, size: 18),
-                            onPressed: () {
-                              _shareToPlatform('twitter', shareLink, twitterText);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Twitter', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  if (showInstagram)
-                    Column(
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [instagramColor, instagramColor.withOpacity(0.7)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
-                            onPressed: () {
-                              _shareToPlatform('instagram', shareLink, shareText);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Instagram', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  if (showWhatsApp)
-                    Column(
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            color: whatsappColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.message, color: Colors.white, size: 18),
-                            onPressed: () {
-                              _shareToPlatform('whatsapp', shareLink, shareText);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('WhatsApp', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  if (showCopyLink)
-                    Column(
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            color: copyLinkColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.link, color: Colors.white, size: 18),
-                            onPressed: () {
-                              _copyShareLink(shareLink);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Copy Link', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                shareLink,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
           ),
         );
 
