@@ -4,19 +4,20 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend/config/environment.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'config/environment.dart';
 
 // Define PriceUtils class
 class PriceUtils {
   static String formatPrice(double price, {String currency = '\$'}) {
-    return '$currency\${price.toStringAsFixed(2)}';
+    return '$currency${price.toStringAsFixed(2)}';
   }
   
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
     // Remove all currency symbols and non-numeric characters except decimal point
-    String numericString = priceString.replaceAll(RegExp(r'[^d.]'), '');
+    String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
     return double.tryParse(numericString) ?? 0.0;
   }
   
@@ -32,6 +33,18 @@ class PriceUtils {
     if (priceString.contains('₦')) return '₦';
     if (priceString.contains('₨')) return '₨';
     return '\$'; // Default to dollar
+  }
+
+  static String currencySymbolFromCode(String code) {
+    switch (code.toUpperCase()) {
+      case 'USD': return '\$';
+      case 'INR': return '₹';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'JPY': return '¥';
+      case 'KRW': return '₩';
+      default: return '\$';
+    }
   }
   
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
@@ -59,7 +72,8 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
-  
+  final String? currencySymbol;
+
   CartItem({
     required this.id,
     required this.name,
@@ -67,6 +81,7 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
+    this.currencySymbol = '\$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -80,6 +95,17 @@ class CartManager extends ChangeNotifier {
   double _discountPercentage = 0.0; // Default discount percentage
   
   List<CartItem> get items => List.unmodifiable(_items);
+  
+  String get displayCurrencySymbol {
+    if (_items.isNotEmpty) {
+      return _items.first.currencySymbol ?? '\$';
+    }
+    return '\$';
+  }
+
+  int get totalQuantity {
+    return _items.fold(0, (sum, item) => sum + item.quantity);
+  }
   
   // Update GST percentage
   void updateGSTPercentage(double percentage) {
@@ -171,7 +197,7 @@ class WishlistItem {
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '$',
+    this.currencySymbol = '\$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -214,13 +240,13 @@ class WishlistManager extends ChangeNotifier {
 }
 
 // Dynamic Configuration from Form
-final String gstNumber = '$gstNumber';
-final String selectedCategory = '$selectedCategory';
+final String gstNumber = '\$gstNumber';
+final String selectedCategory = '\$selectedCategory';
 final Map<String, dynamic> storeInfo = {
-  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-  'address': '${storeInfo['address'] ?? '123 Main St'}',
-  'email': '${storeInfo['email'] ?? 'support@example.com'}',
-  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+  'storeName': '\${storeInfo[\'storeName\'] ?? \'My Store\'}',
+  'address': '\${storeInfo[\'address\'] ?? \'123 Main St\'}',
+  'email': '\${storeInfo[\'email\'] ?? \'support@example.com\'}',
+  'phone': '\${storeInfo[\'phone\'] ?? \'(123) 456-7890\'}',
 };
 
 // Dynamic Product Data - Will be loaded from backend
@@ -262,11 +288,11 @@ class DynamicAppSync {
         'timeout': 5000,
       };
 
-      _socket = IO.io('$apiBase/real-time-updates', options);
+      _socket = IO.io('\$apiBase/real-time-updates', options);
       _setupSocketListeners();
       
     } catch (e) {
-      print('DynamicAppSync: Error connecting: $e');
+      print('DynamicAppSync: Error connecting: \$e');
     }
   }
 
@@ -288,7 +314,7 @@ class DynamicAppSync {
     });
 
     _socket!.on('dynamic-update', (data) {
-      print('DynamicAppSync: Received update: $data');
+      print('DynamicAppSync: Received update: \$data');
       if (!_updateController.isClosed) {
         _updateController.add(Map<String, dynamic>.from(data));
       }
@@ -321,101 +347,6 @@ class DynamicAppSync {
   }
 }
 
-// Function to load dynamic product data from backend
-Future<void> loadDynamicProductData() async {
-  try {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-    
-    // Get dynamic admin ID
-    final adminId = await AdminManager.getCurrentAdminId();
-    print('🔍 Loading dynamic data with admin ID: ${adminId}');
-    
-    final response = await http.get(
-      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-      headers: {'Content-Type': 'application/json'},
-    );
-    
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['success'] == true && data['pages'] != null) {
-        final pages = data['pages'] as List;
-        final newProducts = <Map<String, dynamic>>[];
-        
-        // Extract products from all widgets
-        for (var page in pages) {
-          if (page['widgets'] != null) {
-            for (var widget in page['widgets']) {
-              if (widget['properties'] != null && widget['properties']['productCards'] != null) {
-                final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
-                newProducts.addAll(products);
-              }
-            }
-          }
-        }
-        
-        setState(() {
-          productCards = newProducts;
-          isLoading = false;
-        });
-        
-        print('✅ Loaded ${productCards.length} dynamic products');
-      } else {
-        throw Exception('Invalid response format');
-      }
-    } else {
-      throw Exception('HTTP ${response.statusCode}');
-    }
-  } catch (e) {
-    print('❌ Error loading dynamic data: $e');
-    setState(() {
-      errorMessage = e.toString();
-      isLoading = false;
-    });
-  }
-}
-
-// Real-time updates with WebSocket
-final DynamicAppSync _appSync = DynamicAppSync();
-StreamSubscription? _updateSubscription;
-
-void startRealTimeUpdates() async {
-  final adminId = await AdminManager.getCurrentAdminId();
-  if (adminId != null) {
-    _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
-    
-    _updateSubscription = _appSync.updates.listen((update) {
-      if (!mounted) return;
-      
-      final type = update['type']?.toString().toLowerCase();
-      print('📱 Received real-time update: $type');
-      
-      switch (type) {
-        case 'home-page':
-        case 'dynamic-update':
-          loadDynamicProductData();
-          break;
-      }
-    });
-  }
-}
-
-@override
-void initState() {
-  super.initState();
-  loadDynamicProductData();
-  startRealTimeUpdates();
-}
-
-@override
-void dispose() {
-  _updateSubscription?.cancel();
-  _appSync.dispose();
-  super.dispose();
-}
-
 
 void main() => runApp(const MyApp());
 
@@ -435,7 +366,7 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme(
         elevation: 4,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
@@ -455,7 +386,7 @@ class MyApp extends StatelessWidget {
           borderRadius: BorderRadius.all(Radius.circular(8)),
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Colors.grey,
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     ),
@@ -481,8 +412,8 @@ class SessionManager {
     required String loadedAppName,
   }) async {
     appName = loadedAppName;
-    print('🔍 Admin config loaded: $loadedAppName');
-    print('🎨 App name set globally: ${SessionManager.appName}');
+    print('🔍 Admin config loaded: \$loadedAppName');
+    print('🎨 App name set globally: \${SessionManager.appName}');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('app_name', appName);
@@ -494,8 +425,8 @@ class SessionManager {
   }) async {
     currentUserId = userId;
     authToken = token;
-    print('✅ User logged in: $userId');
-    print('🔐 Session bound to userId: $userId');
+    print('✅ User logged in: \$userId');
+    print('🔐 Session bound to userId: \$userId');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
@@ -518,7 +449,7 @@ class AdminManager {
     );
 
     _currentAdminId = adminId;
-    print('✅ Admin ID locked: $adminId');
+    print('✅ Admin ID locked: \$adminId');
     return adminId;
   }
   
@@ -541,7 +472,7 @@ class AdminManager {
         }
       }
     } catch (e) {
-      print('Auto-detection failed: $e');
+      print('Auto-detection failed: \$e');
     }
     return null;
   }
@@ -573,11 +504,11 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Splash screen using admin ID: ${adminId}');
+      print('🔍 Splash screen using admin ID: \${adminId}');
 
       // Load admin splash config for this fixed adminId
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/admin/splash?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
       );
       
       if (response.statusCode == 200) {
@@ -588,10 +519,10 @@ class _SplashScreenState extends State<SplashScreen> {
           setState(() {
             _appName = SessionManager.appName;
           });
-          print('✅ Splash screen loaded app name: ${_appName}');
+          print('✅ Splash screen loaded app name: \${_appName}');
         }
       } else {
-        print('⚠️ Splash screen API error: ${response.statusCode}');
+        print('⚠️ Splash screen API error: \${response.statusCode}');
         if (mounted) {
           setState(() {
             _appName = SessionManager.appName;
@@ -599,7 +530,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      print('Error fetching app name: ${e}');
+      print('Error fetching app name: \${e}');
       // If admin ID not found, show default and let user configure
       if (mounted) {
         setState(() {
@@ -871,7 +802,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validateEmail(String email) {
-    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}$').hasMatch(email);
+    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$').hasMatch(email);
   }
 
   bool _validatePhone(String phone) {
@@ -922,7 +853,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('${Environment.apiBase}/api/signup'),
+        Uri.parse('\${Environment.apiBase}/api/signup'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'firstName': firstName,
@@ -970,7 +901,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed: 2.718281828459045'),
+            content: Text('Failed: \$e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1107,22 +1038,113 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _dynamicStoreInfo = {};
   Map<String, dynamic> _dynamicDesignSettings = {};
 
+  // AppSync and Subscription
+  final DynamicAppSync _appSync = DynamicAppSync();
+  StreamSubscription? _updateSubscription;
+
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
     _dynamicProductCards = List.from(productCards); // Fallback to static data
     _filteredProducts = List.from(_dynamicProductCards);
-    _loadDynamicData();
+    
+    // Load initial data and start updates
+    loadDynamicProductData();
+    startRealTimeUpdates();
   }
 
   @override
   void dispose() {
+    _updateSubscription?.cancel();
+    _appSync.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
-  // Real-time updates removed - app updates dynamically via WebSocket
+  // Real-time updates with WebSocket
+  void startRealTimeUpdates() async {
+    final adminId = await AdminManager.getCurrentAdminId();
+    if (adminId != null) {
+      _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
+      
+      _updateSubscription = _appSync.updates.listen((update) {
+        if (!mounted) return;
+        
+        final type = update['type']?.toString().toLowerCase();
+        print('📱 Received real-time update: \$type');
+        
+        switch (type) {
+          case 'home-page':
+          case 'dynamic-update':
+            loadDynamicProductData();
+            break;
+        }
+      });
+    }
+  }
+
+  // Function to load dynamic product data from backend
+  Future<void> loadDynamicProductData() async {
+    try {
+      if (mounted) {
+        setState(() {
+          isLoading = true;
+          errorMessage = null;
+        });
+      }
+      
+      // Get dynamic admin ID
+      final adminId = await AdminManager.getCurrentAdminId();
+      print('🔍 Loading dynamic data with admin ID: \${adminId}');
+      
+      final response = await http.get(
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['pages'] != null) {
+          final pages = data['pages'] as List;
+          final newProducts = <Map<String, dynamic>>[];
+          
+          // Extract products from all widgets
+          for (var page in pages) {
+            if (page['widgets'] != null) {
+              for (var widget in page['widgets']) {
+                if (widget['properties'] != null && widget['properties']['productCards'] != null) {
+                  final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
+                  newProducts.addAll(products);
+                }
+              }
+            }
+          }
+          
+          if (mounted) {
+            setState(() {
+              productCards = newProducts;
+              isLoading = false;
+            });
+          }
+          
+          print('✅ Loaded \${productCards.length} dynamic products');
+        } else {
+          throw Exception('Invalid response format');
+        }
+      } else {
+        throw Exception('HTTP \${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading dynamic data: \$e');
+      if (mounted) {
+        setState(() {
+          errorMessage = e.toString();
+          isLoading = false;
+        });
+      }
+    }
+  }
 
   Future<void> _loadDynamicData() async {
     setState(() => _isLoading = true);
@@ -1137,10 +1159,10 @@ class _HomePageState extends State<HomePage> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Home page using admin ID: ${adminId}');
+      print('🔍 Home page using admin ID: \${adminId}');
       
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -1189,11 +1211,11 @@ class _HomePageState extends State<HomePage> {
             _dynamicDesignSettings = designSettings;
             _isLoading = false;
           });
-          print('✅ Loaded ${_dynamicProductCards.length} products from backend');
+          print('✅ Loaded \${_dynamicProductCards.length} products from backend');
         }
       }
     } catch (e) {
-      print('❌ Error loading dynamic data: $e');
+      print('❌ Error loading dynamic data: \$e');
       setState(() => _isLoading = false);
     }
   }
@@ -1253,6 +1275,17 @@ class _HomePageState extends State<HomePage> {
     final String code = (product['currencyCode'] ?? '').toString();
     if (code.isNotEmpty) return PriceUtils.currencySymbolFromCode(code);
     return PriceUtils.detectCurrency((product['price'] ?? '').toString());
+  }
+
+  Future<bool> _isAdmin() async {
+    // Mock implementation - in a real app, check session/role
+    return false;
+  }
+
+  void _handleBuyNow() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Checkout functionality coming soon!')),
+    );
   }
 
   @override
@@ -1975,7 +2008,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -1998,7 +2031,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error loading store data: 2.718281828459045');
+      print('Error loading store data: \$e');
     }
     
     // Return default values if API fails
@@ -2058,7 +2091,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2081,7 +2114,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error loading products: 2.718281828459045');
+      print('Error loading products: \$e');
     }
     
     return [];
@@ -2146,7 +2179,7 @@ class _HomePageState extends State<HomePage> {
     final bool isSoldOut = quantityAvailable <= 0;
     final String discountLabel;
     if (hasPercentDiscount) {
-      discountLabel = '0% OFF';
+      discountLabel = '\${badgeDiscountPercent.toInt()}% OFF';
     } else {
       discountLabel = 'OFFER';
     }
@@ -2155,7 +2188,7 @@ class _HomePageState extends State<HomePage> {
     if (isSoldOut) {
       stockLabel = 'SOLD OUT';
     } else {
-      stockLabel = 'In stock: 0';
+      stockLabel = 'In stock: \$quantityAvailable';
     }
     final bool isInWishlist = _wishlistManager.isInWishlist(productId);
 
@@ -2306,7 +2339,7 @@ class _HomePageState extends State<HomePage> {
                         // Only show stock label for items that are in stock and only for admin users
                         if (!isSoldOut)
                           FutureBuilder<bool>(
-                            future: AuthHelper.isAdmin(),
+                            future: _isAdmin(),
                             builder: (context, snapshot) {
                               if (snapshot.hasData && snapshot.data == true) {
                                 return Text(
@@ -2318,7 +2351,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 );
                               }
-                              return SizedBox.shrink();
+                              return const SizedBox.shrink();
                             },
                           ),
                       ],
@@ -2337,15 +2370,15 @@ class _HomePageState extends State<HomePage> {
   // Helper methods for social sharing
   void _shareToPlatform(String platform, String link, String text) {
     // Simple implementation - in real app would use url_launcher or share_plus
-    print('Share to ' + platform + ': ' + link + ' with text: ' + text);
+    print('Share to \$platform: \$link with text: \$text');
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Sharing to ' + platform + '...')),
+      SnackBar(content: Text('Sharing to \$platform...')),
     );
   }
 
   void _copyShareLink(String link) {
     // Simple implementation - in real app would use clipboard
-    print('Copy link: ' + link);
+    print('Copy link: \$link');
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Link copied to clipboard!')),
     );
@@ -2368,7 +2401,7 @@ class _HomePageState extends State<HomePage> {
     try {
       return Color(int.parse('0x' + localFormattedColor));
     } catch (e) {
-      print('Invalid color: ' + hexColor);
+      print('Invalid color: \$hexColor');
       return Colors.blue;
     }
   }
@@ -2763,7 +2796,7 @@ class _HomePageState extends State<HomePage> {
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
                       final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
-                          ? '$firstName $lastName'
+                          ? '\$firstName \$lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
                       
                       return Text(
@@ -2822,7 +2855,7 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('${_cartManager.items.length}'),
+            label: Text('\${_cartManager.items.length}'),
             isLabelVisible: _cartManager.items.length > 0,
             child: const Icon(Icons.shopping_cart),
           ),
@@ -2830,7 +2863,7 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('${_wishlistManager.items.length}'),
+            label: Text('\${_wishlistManager.items.length}'),
             isLabelVisible: _wishlistManager.items.length > 0,
             child: const Icon(Icons.favorite),
           ),
@@ -2847,48 +2880,23 @@ class _HomePageState extends State<HomePage> {
   // Method to fetch user profile data
   Future<Map<String, dynamic>> _fetchUserProfile() async {
     try {
-      final ApiService apiService = ApiService();
-      final userProfile = await apiService.getUserProfile();
-      return userProfile['user'] ?? userProfile;
+      final token = SessionManager.authToken;
+      if (token == null) return {};
+      
+      final response = await http.get(
+        Uri.parse('\${Environment.apiBase}/api/user/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer \$token',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
     } catch (e) {
-      print('Error fetching user profile: 2.718281828459045');
-      return {};
+      print('Error fetching user profile: \$e');
     }
+    return {};
   }
-
 }
-  Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      currentIndex: _currentPageIndex,
-      onTap: _onItemTapped,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.blue,
-      unselectedItemColor: Colors.grey,
-      items: [
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('${_wishlistManager.items.length}'),
-            isLabelVisible: _wishlistManager.items.length > 0,
-            child: const Icon(Icons.favorite),
-          ),
-          label: 'Wishlist',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('${_cartManager.items.length}'),
-            isLabelVisible: _cartManager.items.length > 0,
-            child: const Icon(Icons.shopping_cart),
-          ),
-          label: 'Cart',
-        ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
-    );
-  }
