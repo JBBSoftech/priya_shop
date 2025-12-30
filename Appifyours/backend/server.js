@@ -244,8 +244,8 @@ app.get('/api/app-config', async (req, res) => {
   try {
     // This would connect to your main database to get latest configuration
     const config = {
-      adminId: '694b7de927bc8d04436e11e9',
-      shopName: 'priya shop',
+      adminId: '69535fb368486a3e1fd9520c',
+      shopName: 'Priya shop',
       lastUpdated: new Date().toISOString(),
       // Add dynamic configuration based on your app structure
       features: {
@@ -268,7 +268,7 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`priya shop Backend Server running on port ${PORT}`);
+  console.log(`Priya shop Backend Server running on port ${PORT}`);
 });
 
 module.exports = app;
