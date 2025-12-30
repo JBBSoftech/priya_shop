@@ -526,7 +526,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.248.12.5:5000/api/admin/app-info'),
+        Uri.parse('http://10.171.35.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -701,7 +701,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.248.12.5:5000/api/login'),
+        Uri.parse('http://10.171.35.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -2324,186 +2324,6 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // Rating + wishlist
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.amber, size: 12),
-                        const Icon(Icons.star, color: Colors.amber, size: 12),
-                        const Icon(Icons.star, color: Colors.amber, size: 12),
-                        const Icon(Icons.star, color: Colors.amber, size: 12),
-                        const Icon(Icons.star_border, color: Colors.amber, size: 12),
-                        const SizedBox(width: 2),
-                        Text(
-                          rating,
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () {
-                            if (isInWishlist) {
-                              _wishlistManager.removeItem(productId);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Removed from wishlist')),
-                              );
-                            } else {
-                              final wishlistItem = WishlistItem(
-                                id: productId,
-                                name: productName,
-                                price: basePrice,
-                                discountPrice: hasDiscount ? effectivePrice : 0.0,
-                                image: image,
-                                currencySymbol: currencySymbol,
-                              );
-                              _wishlistManager.addItem(wishlistItem);
-                              setState(() {
-                                _wishlistNotificationCount += 1;
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Added to wishlist')),
-                              );
-                            }
-                            setState(() {});
-                          },
-                          child: Icon(
-                            isInWishlist ? Icons.favorite : Icons.favorite_border,
-                            color: isInWishlist ? Colors.red : Colors.grey,
-                            size: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // Quantity controls and Add to Cart button
-                    Container(
-                      width: double.infinity,
-                      height: 32,
-                      child: Row(
-                        children: [
-                          // Quantity controls
-                          Container(
-                            width: 60,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                // Decrease button
-                                GestureDetector(
-                                  onTap: () => _decrementQuantity(productId),
-                                  child: Container(
-                                    width: 18,
-                                    height: 18,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                    child: const Icon(
-                                      Icons.remove,
-                                      size: 12,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                // Quantity display
-                                Text(
-                                  _getProductQuantity(productId).toString(),
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                // Increase button
-                                GestureDetector(
-                                  onTap: () => _incrementQuantity(productId),
-                                  child: Container(
-                                    width: 18,
-                                    height: 18,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                    child: const Icon(
-                                      Icons.add,
-                                      size: 12,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Add to Cart button
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: isSoldOut || !_canAddToCart()
-                                  ? null
-                                  : () {
-                                      final quantity = _getProductQuantity(productId);
-                                      for (int i = 0; i < quantity; i++) {
-                                        final cartItem = CartItem(
-                                          id: productId + '_' + i.toString(),
-                                          name: productName,
-                                          price: basePrice,
-                                          discountPrice: hasDiscount ? effectivePrice : 0.0,
-                                          image: image,
-                                          currencySymbol: currencySymbol,
-                                        );
-                                        _cartManager.addItem(cartItem);
-                                      }
-
-                                      setState(() {
-                                        _cartNotificationCount += quantity;
-                                      });
-                                      
-                                      if (!_canAddToCart()) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Only have 10 products allowed'),
-                                            backgroundColor: Colors.orange,
-                                          ),
-                                        );
-                                      } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Added ' + quantity.toString() + ' item(s) to cart'),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-                                      }
-                                      
-                                      // Reset quantity to 1 after adding to cart
-                                      setState(() {
-                                        _productQuantities[productId] = 1;
-                                      });
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isSoldOut || !_canAddToCart()
-                                    ? Colors.grey
-                                    : Colors.blue,
-                                foregroundColor: Colors.white,
-                                elevation: 2,
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: Text(
-                                isSoldOut
-                                    ? 'Sold Out'
-                                    : !_canAddToCart()
-                                        ? 'Limit Reached'
-                                        : 'Add to Cart',
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -2923,31 +2743,38 @@ class _HomePageState extends State<HomePage> {
                     child: Icon(Icons.person, size: 60, color: Colors.white),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
-                    'John Doe',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(250, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {
-                      // Refund button action
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: _fetchUserProfile(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const CircularProgressIndicator();
+                      }
+                      if (snapshot.hasError) {
+                        return const Text(
+                          'User',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        );
+                      }
+                      final userData = snapshot.data ?? {};
+                      final firstName = userData['firstName'] ?? '';
+                      final lastName = userData['lastName'] ?? '';
+                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
+                          ? '$firstName $lastName'
+                          : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
+                      
+                      return Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      );
                     },
-                    child: const Text(
-                      'Refund',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
                   ),
                   const SizedBox(height: 15),
                   OutlinedButton(
@@ -3015,6 +2842,18 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
     );
+  }
+
+  // Method to fetch user profile data
+  Future<Map<String, dynamic>> _fetchUserProfile() async {
+    try {
+      final ApiService apiService = ApiService();
+      final userProfile = await apiService.getUserProfile();
+      return userProfile['user'] ?? userProfile;
+    } catch (e) {
+      print('Error fetching user profile: 2.718281828459045');
+      return {};
+    }
   }
 
 }
