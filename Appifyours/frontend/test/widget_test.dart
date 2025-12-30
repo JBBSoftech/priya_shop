@@ -4,12 +4,10 @@ import 'package:appifyours/main.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: MyApp(),
-      ),
-    );
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
 
-    expect(find.byType(MyApp), findsOneWidget);
+    // Verify that the app builds without errors
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }
