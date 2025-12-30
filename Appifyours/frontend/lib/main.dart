@@ -527,7 +527,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.171.35.5:5000/api/admin/app-info'),
+        Uri.parse('http://10.248.12.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -702,7 +702,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.171.35.5:5000/api/login'),
+        Uri.parse('http://10.248.12.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -2747,10 +2747,13 @@ class _HomePageState extends State<HomePage> {
                   FutureBuilder<Map<String, dynamic>>(
                     future: _fetchUserProfile(),
                     builder: (context, snapshot) {
+                      print('🔄 FutureBuilder state: ${snapshot.connectionState}');
                       if (snapshot.connectionState == ConnectionState.waiting) {
+                        print('⏳ Showing loading indicator...');
                         return const CircularProgressIndicator();
                       }
                       if (snapshot.hasError) {
+                        print('❌ FutureBuilder error: ${snapshot.error}');
                         return const Text(
                           'User',
                           style: TextStyle(
@@ -2761,11 +2764,14 @@ class _HomePageState extends State<HomePage> {
                         );
                       }
                       final userData = snapshot.data ?? {};
+                      print('📊 User data in FutureBuilder: $userData');
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
+                      print('👤 Extracted names - First: "$firstName", Last: "$lastName"');
                       final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
                           ? '$firstName $lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
+                      print('🎯 Display name: "$displayName"');
                       
                       return Text(
                         displayName,
@@ -2848,11 +2854,46 @@ class _HomePageState extends State<HomePage> {
   // Method to fetch user profile data
   Future<Map<String, dynamic>> _fetchUserProfile() async {
     try {
+      print('🔍 Starting user profile fetch...');
+      print('🌐 API Base URL: ${Environment.apiBase}');
+      
       final ApiService apiService = ApiService();
+      
+      // Check if user is authenticated first
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      print('🔐 Token exists: ${token != null ? 'YES' : 'NO'}');
+      if (token != null) {
+        print('🔑 Token (first 20 chars): ${token.substring(0, 20)}...');
+      }
+      
       final userProfile = await apiService.getUserProfile();
+      print('✅ Profile data received: $userProfile');
+      print('📝 First name: ${userProfile['firstName']}');
+      print('📝 Last name: ${userProfile['lastName']}');
       return userProfile;
     } catch (e) {
-      print('Error fetching user profile: 2.718281828459045');
+      print('❌ Error fetching user profile: $e');
+      print('🔧 Stack trace: ${StackTrace.current}');
+      
+      // Try fallback method - check if we have stored user data
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final storedFirstName = prefs.getString('first_name');
+        final storedLastName = prefs.getString('last_name');
+        print('💾 Fallback - Stored first name: $storedFirstName');
+        print('💾 Fallback - Stored last name: $storedLastName');
+        
+        if (storedFirstName != null || storedLastName != null) {
+          return {
+            'firstName': storedFirstName ?? '',
+            'lastName': storedLastName ?? '',
+          };
+        }
+      } catch (fallbackError) {
+        print('❌ Fallback also failed: $fallbackError');
+      }
+      
       return {};
     }
   }
