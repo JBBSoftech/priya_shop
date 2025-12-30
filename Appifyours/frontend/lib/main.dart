@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/config/environment.dart';
+import 'package:frontend/services/api_service.dart';
 
 // Define PriceUtils class
 class PriceUtils {
