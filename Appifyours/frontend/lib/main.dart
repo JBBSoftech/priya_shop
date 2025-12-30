@@ -321,19 +321,6 @@ class DynamicAppSync {
   }
 }
 
-class LowerCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final lower = newValue.text.toLowerCase();
-    if (lower == newValue.text) return newValue;
-    return TextEditingValue(
-      text: lower,
-      selection: newValue.selection,
-      composing: TextRange.empty,
-    );
-  }
-}
-
 // Function to load dynamic product data from backend
 Future<void> loadDynamicProductData() async {
   try {
@@ -539,7 +526,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.147.118.184:5000/api/admin/app-info'),
+        Uri.parse('http://10.248.12.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -714,10 +701,10 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.147.118.184:5000/api/login'),
+        Uri.parse('http://10.248.12.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'email': _emailController.text.trim().toLowerCase(),
+          'email': _emailController.text.trim(),
           'password': _passwordController.text,
           'adminId': adminId,
           'appId': ApiConfig.appId,
@@ -765,7 +752,6 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -799,22 +785,9 @@ class _SignInPageState extends State<SignInPage> {
               const SizedBox(height: 48),
               TextField(
                 controller: _emailController,
-                inputFormatters: [LowerCaseTextFormatter()],
-                onChanged: (value) {
-                  final lower = value.toLowerCase();
-                  if (lower != value) {
-                    _emailController.value = _emailController.value.copyWith(
-                      text: lower,
-                      selection: TextSelection.collapsed(offset: lower.length),
-                      composing: TextRange.empty,
-                    );
-                  }
-                },
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.email),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
@@ -824,8 +797,6 @@ class _SignInPageState extends State<SignInPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock),
-                  filled: true,
-                  fillColor: Colors.white,
                   suffixIcon: IconButton(
                     icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -888,7 +859,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
-  Country? _selectedPhoneCountry;
 
   @override
   void dispose() {
@@ -905,12 +875,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validatePhone(String phone) {
-    final digitsOnly = phone.replaceAll(RegExp(r'D'), '');
-    final maxLen = _selectedPhoneCountry?.maxLength;
-    if (maxLen != null) {
-      return digitsOnly.length == maxLen;
-    }
-    return RegExp(r'^[0-9]{10}$').hasMatch(digitsOnly);
+    return RegExp(r'^[0-9]{10}$').hasMatch(phone);
   }
 
   bool _validatePassword(String password) {
@@ -920,7 +885,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   Future<void> _createAccount() async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
-    final email = _emailController.text.trim().toLowerCase();
+    final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text;
 
@@ -956,9 +921,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
     try {
       final adminId = await AdminManager.getCurrentAdminId();
-      final dialCode = _selectedPhoneCountry?.dialCode ?? '';
-      final phoneDigits = phone.replaceAll(RegExp(r'D'), '');
-      final fullPhone = '$dialCode$phoneDigits';
       final response = await http.post(
         Uri.parse('${Environment.apiBase}/api/signup'),
         headers: {'Content-Type': 'application/json'},
@@ -967,7 +929,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           'lastName': lastName,
           'email': email,
           'password': password,
-          'phone': fullPhone,
+          'phone': phone,
           'adminId': adminId,
           'shopName': SessionManager.appName,
         }),
@@ -1019,13 +981,9 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Create Account'),
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -1055,8 +1013,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 decoration: const InputDecoration(
                   labelText: 'First Name',
                   prefixIcon: Icon(Icons.person),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
@@ -1066,40 +1022,26 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 decoration: const InputDecoration(
                   labelText: 'Last Name',
                   prefixIcon: Icon(Icons.person_outline),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 16),
-              CustomPhoneInput(
+              TextField(
                 controller: _phoneController,
-                hintText: 'Enter phone number',
-                onCountryChanged: (country) {
-                  setState(() {
-                    _selectedPhoneCountry = country;
-                  });
-                },
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  prefixIcon: Icon(Icons.phone),
+                  hintText: '10 digit number',
+                ),
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _emailController,
-                inputFormatters: [LowerCaseTextFormatter()],
-                onChanged: (value) {
-                  final lower = value.toLowerCase();
-                  if (lower != value) {
-                    _emailController.value = _emailController.value.copyWith(
-                      text: lower,
-                      selection: TextSelection.collapsed(offset: lower.length),
-                      composing: TextRange.empty,
-                    );
-                  }
-                },
                 decoration: const InputDecoration(
                   labelText: 'Email ID',
                   prefixIcon: Icon(Icons.email),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
@@ -1109,8 +1051,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock),
-                  filled: true,
-                  fillColor: Colors.white,
                   suffixIcon: IconButton(
                     icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
