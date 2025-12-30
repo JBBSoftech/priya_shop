@@ -17,6 +17,7 @@ dependencies:
   provider: ^6.1.5+1
   socket_io_client: ^2.0.3+1
   flutter_screenutil: ^5.8.4
+  intl_phone_number_input: ^0.7.5
 
 dev_dependencies:
   flutter_test:
