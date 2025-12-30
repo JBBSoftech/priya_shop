@@ -7,19 +7,18 @@ plugins {
 
 android {
     namespace "com.appifyours.app"
-    // ✅ STABLE SDK (DO NOT USE 35 IN CI)
     compileSdk 34
     ndkVersion "25.1.8937393"
-    
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
-    
+
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "1.8"
     }
-    
+
     defaultConfig {
         applicationId "com.appifyours.app"
         minSdk 21
@@ -28,22 +27,16 @@ android {
         versionName "1.0"
         multiDexEnabled true
     }
-    
+
     buildTypes {
-        debug {
-            minifyEnabled false
-            shrinkResources false
-        }
         release {
             minifyEnabled true
             shrinkResources true
-            // ✅ FIX: Use direct file path instead of getDefaultProguardFile()
-            proguardFiles file('proguard-rules.pro')
-            // CI-safe
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.debug
         }
     }
-    
+
     packagingOptions {
         pickFirst '**/libjsc.so'
         pickFirst '**/libc++_shared.so'
