@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'config/environment.dart';
+import 'package:frontend/config/environment.dart';
 
 // Define PriceUtils class
 class PriceUtils {
@@ -455,7 +455,7 @@ class MyApp extends StatelessWidget {
           borderRadius: BorderRadius.all(Radius.circular(8)),
         ),
         filled: true,
-        fillColor: Colors.grey,
+        fillColor: Colors.white,
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     ),
