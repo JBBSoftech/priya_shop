@@ -467,7 +467,7 @@ class MyApp extends StatelessWidget {
 // API Configuration - Auto-updated with your server details
 class ApiConfig {
   static String get baseUrl => Environment.apiBase;
-  static const String adminObjectId = 'ADMIN_OBJECT_ID_HERE'; // Will be replaced during publish
+  static const String adminObjectId = '6953684f68486a3e1fd9521c'; // Will be replaced during publish
   static const String appId = 'APP_ID_HERE'; // Will be replaced during publish
 }
 
